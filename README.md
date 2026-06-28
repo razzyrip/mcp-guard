@@ -93,17 +93,32 @@ winget install OpenJS.NodeJS.LTS
 
 ### Install mcp-guard
 
-#### Option A — from npm (recommended for users)
+> **Not on the public npm registry (yet).** Running `npm install -g mcp-guard` will **not** install
+> this project — that name on npm is unrelated to this repo. Use one of the methods below.
+> Publishing under a scope you own is the recommended path once you're ready — see
+> [Publishing to npm](#publishing-to-npm-optional).
+
+#### Option A — install directly from GitHub (quickest)
 
 ```bash
-npm install -g mcp-guard
+npm install -g github:razzyrip/mcp-guard
 ```
 
-Verify:
-```bash
-mcp-guard --version
-# 0.1.0
-```
+This clones the repo, installs dependencies, builds it (via the `prepare` script), and puts the
+`mcp-guard` command on your `PATH`. Requires `git` to be installed.
+
+> For this to produce a working command, the repo's `package.json` must declare a `bin` entry and
+> build on install, and the CLI must have a shebang:
+>
+> ```json
+> {
+>   "bin": { "mcp-guard": "dist/cli.js" },
+>   "scripts": { "build": "tsc", "prepare": "npm run build" }
+> }
+> ```
+>
+> `src/cli.ts` (compiled to `dist/cli.js`) must start with `#!/usr/bin/env node`. Without these,
+> the global `mcp-guard` command is never created.
 
 #### Option B — from source (for development or contribution)
 
@@ -112,12 +127,49 @@ git clone https://github.com/razzyrip/mcp-guard.git
 cd mcp-guard
 npm install
 npm run build
-npm link          # makes `mcp-guard` available globally from source
+npm link          # symlinks the `mcp-guard` command onto your PATH from this build
 ```
+
+`npm link` creates a symlink (not a copy), so after any later `npm run build` your changes are
+picked up with no re-install. Same `bin` + shebang requirement as Option A.
+
+#### Verify the install
+
+```bash
+mcp-guard --version
+# 0.1.0
+
+mcp-guard --help      # should print the command help
+```
+
+If you get `command not found: mcp-guard`:
+
+- the `bin`/shebang above isn't set, **or**
+- the global npm bin folder isn't on your `PATH` — find it with `npm prefix -g` (the command lives
+  in that folder's `bin` on macOS/Linux, or the folder root on Windows) and add it to `PATH`, **or**
+- skip the global command entirely and call the built file directly:
+  `node /absolute/path/to/mcp-guard/dist/cli.js --help`.
+
+#### Publishing to npm (optional)
+
+The unscoped name `mcp-guard` is already taken by unrelated projects, so publish under a scope you
+own (the `bin` name stays `mcp-guard`, so the command is unchanged):
+
+```bash
+# one-time in package.json: "name": "@razzyrip/mcp-guard"  (plus the "bin" entry above)
+npm login
+npm publish --access public
+```
+
+Users would then install with `npm install -g @razzyrip/mcp-guard`.
 
 ---
 
 ## Quick start
+
+> Steps 1, 4 and 5 use files and scripts that live in the cloned repo (Option B). If you installed
+> globally via Option A, create your `policy.yaml` from the [Configuration](#configuration) schema
+> instead of copying `policy.example.yaml`, and run `npm run demo` / `npm test` from a clone of the repo.
 
 1. **Copy the example policy and adapt it:**
 
@@ -149,7 +201,13 @@ npm test
 
 ## Integrating with your AI agent
 
-The integration pattern is always the same: wherever the agent is configured to run an MCP server command, you prepend `mcp-guard run --policy /path/to/policy.yaml --` (or replace the command entirely). mcp-guard becomes the process the agent connects to; it then spawns the real server.
+The integration pattern is always the same: wherever the agent is configured to run an MCP server, point the command at `mcp-guard` and move the real server command into your `policy.yaml` (see the examples below). mcp-guard becomes the process the agent connects to; it then spawns the real server.
+
+> **Tip — if the client can't find `mcp-guard`:** GUI editors launched from the dock/Start menu often don't inherit your shell `PATH`, so `"command": "mcp-guard"` can fail to start. Use an absolute path instead — either the global symlink (run `which mcp-guard` to find it) or the built file directly:
+>
+> ```json
+> { "command": "node", "args": ["/abs/path/to/mcp-guard/dist/cli.js", "run", "--policy", "/abs/path/to/policy.yaml"] }
+> ```
 
 ### Claude Code
 
