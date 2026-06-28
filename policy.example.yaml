@@ -1,0 +1,59 @@
+servers:
+  # The downstream MCP server to wrap. mcp-guard spawns it as a child process.
+  - id: email
+    command: "node dist/mock/benign-email-server.js"
+
+stages:
+  integrity:                     # S0 — tool definition hash pinning (rug-pull defense)
+    enabled: true
+    onChange: block              # block | flag
+
+  staticScan:                    # Static description scanner (install-time + on tools/list)
+    enabled: true
+    blockSeverity: high          # block at this severity or above; else flag
+
+  egress:                        # S1 — declared destination allowlist
+    enabled: true
+    allowedDomains:
+      - "mycompany.com"
+      - "smtp.mycompany.com"
+    # Which argument fields of which tools carry destinations (emails, URLs, hosts):
+    destinationFields:
+      send_email: ["to", "cc", "bcc"]
+      fetch_url: ["url"]
+    onViolation: block           # block | flag
+
+  secretScan:                    # S2 — DLP secret / token scanner
+    enabled: true
+    onDetect: redact             # redact | block
+    extraSecrets: []             # literal secret values to guard (matched, never logged in clear)
+
+  judge:                         # S3 — out-of-band AI judge (needs ANTHROPIC_API_KEY)
+    enabled: false
+    model: "claude-haiku-4-5"
+    onError: flag                # flag | block (fail-closed: error → route to HITL)
+
+  hitl:                          # Human-in-the-loop approval
+    enabled: true
+    irreversibleTools:
+      - "send_email"
+      - "delete_file"
+    provider: autodeny           # autodeny (tests/CI) | localweb (interactive browser UI)
+
+credentials:                     # Credential broker — keeps real secrets out of AI context
+  vault: env                     # env | encrypted-file | keychain | external
+  bindings:
+    - tool: get_file
+      field: accessToken         # or use `header: "Authorization"` for header-based auth
+      secret: figma              # name of the secret in the vault (env: MCP_SECRET_FIGMA)
+      handle: "<<secret:figma>>" # the value the AI model sees and plans with
+      injectFor:
+        - "api.figma.com"        # only inject when destination matches (intersects S1 allowlist)
+  # oauth:                       # preferred path for servers supporting OAuth 2.1
+  #   - server: figma
+  #     mode: oauth
+  #     scopes: ["file_read"]
+
+audit:
+  path: ".mcp-guard/audit.log"
+  hashChain: true                # each entry includes prevHash for tamper-evidence
