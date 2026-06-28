@@ -610,4 +610,4 @@ policy.example.yaml
 
 Questions, ideas, or want a hand getting mcp-guard running? Reach out — I'm glad to help.
 
-Open an [issue](https://github.com/razzyrip/mcp-guard/issues) or contact me at razzyrip@github.com.
+Open an [issue](https://github.com/razzyrip/mcp-guard/issues) or contact me email: razzyripper@gmail.com
